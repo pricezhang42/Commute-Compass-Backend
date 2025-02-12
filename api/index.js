@@ -15,8 +15,8 @@ app.use(cors()); // Use this after the variable declaration
 
 app.post('/myFunction', async (req, res) => {
     console.log(req.body);
-    const origin = req.body.origin;
-    const destination = req.body.destination;
+    const origin = req.body.coordOrigin;
+    const destination = req.body.coordDest;
     const result = await main(origin, destination);
     console.log("---------------------");
     console.log(result);
@@ -196,14 +196,20 @@ const orderRouteScores = (routeScores) => {
 }
 
 const main = async (origin, destination) => {
-    const plans = await getPlans(origin, destination);
-    const routeStats = await getRouteStats(plans);
-    const normalizedStats = normalizeRouteStats(routeStats);
-    console.log('Normalized Stats', normalizedStats);
-    const routeScores = calculateRouteScores(normalizedStats);
-    const orderedRouteScores = orderRouteScores(routeScores);
-    // console.log('Scores', orderedRouteScores);
-    return [plans, orderedRouteScores];
+    try {
+        const plans = await getPlans(origin, destination);
+        const routeStats = await getRouteStats(plans);
+        const normalizedStats = normalizeRouteStats(routeStats);
+        console.log('Normalized Stats', normalizedStats);
+        const routeScores = calculateRouteScores(normalizedStats);
+        const orderedRouteScores = orderRouteScores(routeScores);
+        // console.log('Scores', orderedRouteScores);
+        return [plans, orderedRouteScores];
+    } catch (err) {
+        console.error("Error fetching route data:", err);
+        return [];
+    }
+
 }
 
 app.listen(port, () => {
