@@ -3,6 +3,7 @@ const cors = require('cors');
 const express = require('express');
 const app = express();
 const port = 3000;
+require('dotenv').config();
 
 app.use(express.json()); // Middleware to parse JSON bodies
 // const corsOptions ={
@@ -31,7 +32,7 @@ app.get('/', function (req, res) {
 const autocompleteAPI = 'https://winnipegtransit.com/api/v2/navigo/autocomplete';
 const tripPlannerAPI = 'https://api.winnipegtransit.com/v3/trip-planner.json';
 const stopAPI = 'https://api.winnipegtransit.com/v3/stops/';
-const apiKey = 'lcYjgFR4KHOiel8nzAuO';
+const apiKey = process.env.API_KEY;
 
 const sendRequest = (url, config) => {
     return axios.get(url, config);
