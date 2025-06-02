@@ -16,8 +16,8 @@ app.use(cors()); // Use this after the variable declaration
 
 app.post('/myFunction', async (req, res) => {
     console.log(req.body);
-    const origin = req.body.coordOrigin;
-    const destination = req.body.coordDest;
+    const origin = req.body.origin;
+    const destination = req.body.destination;
     const result = await main(origin, destination);
     console.log("---------------------");
     console.log(result);
@@ -86,14 +86,16 @@ const getStopFeatures = (stopKey) => {
 }
 
 // Function to check if a stop is sheltered
-const isStopSheltered = async (stopKey) => {
+const fetchStopSheltered = async (stopKey) => {
     const features = await getStopFeatures(stopKey);
     for (const feature of features) {
-        if (feature.name.includes('Shelter')) {
-            return true;
+        if (feature.name === 'Heated Shelter') {
+            return 'Heated Shelter';
+        } else if (feature.name === 'Unheated Shelter') {
+            return 'Unheated Shelter';
         }
     }
-    return false;
+    return 'Unsheltered';
 }
 
 // Function to calculate route statistics
@@ -101,6 +103,7 @@ const calculateRouteStats = async (plan) => {
     let shelterDensity = 0;
     let totalDuration = plan.times.durations.total || 0;
     let totalTimeOutside = plan.times.durations.walking || 0;
+    let totalTimeSheltered = 0;
     let numTransfers = 0;
     let numToStops = 0;
     let numShelteredToStops = 0;
@@ -116,19 +119,19 @@ const calculateRouteStats = async (plan) => {
             numToStops++;
 
             const stopKey = seg.to.stop.key;
-            const isSheltered = await isStopSheltered(stopKey);
+            const shelter = await fetchStopSheltered(stopKey);
+            seg.to.stop["shelter"] = shelter;
 
             // If the stop is sheltered, update the number of sheltered stops, otherwise update the time spent outside if it exists
-            if (isSheltered) {
+            if (seg.times.durations.waiting) {
+                totalTimeOutside += seg.times.durations.waiting;
+            }
+            if (shelter !== 'Unsheltered') {
                 numShelteredToStops++;
-                seg.to.stop["isSheltered"] = true;
-            }
-            else {
                 if (seg.times.durations.waiting) {
-                    totalTimeOutside += seg.times.durations.waiting;
-                    seg.to.stop["isSheltered"] = false;
+                    totalTimeSheltered += seg.times.durations.waiting;
                 }
-            }
+            } 
         }
     }
 
@@ -140,6 +143,7 @@ const calculateRouteStats = async (plan) => {
         shelterDensity,
         totalDuration,
         totalTimeOutside,
+        totalTimeSheltered,
         numTransfers
     };
 }
@@ -172,7 +176,7 @@ const normalizeRouteStats = (routeStats) => {
     const maxTransfers = Math.max(...routeStats.map(stat => stat.numTransfers));
 
     for (const stat of routeStats) {
-        stat.shelterDensity = stat.shelterDensity / maxShelterDensity;
+        stat.shelterDensity = maxShelterDensity === 0 ? 0:(stat.shelterDensity / maxShelterDensity);
         stat.totalDuration = stat.totalDuration / maxDuration;
         stat["totalTimeOutsideUnnorm"] = stat.totalTimeOutside;
         stat.totalTimeOutside = stat.totalTimeOutside / maxTimeOutside;
@@ -187,7 +191,7 @@ const calculateRouteScores = (normalizedStats) => {
 
     for (const stat of normalizedStats) {
         const score = stat.shelterDensity + 2*(1 - stat.totalTimeOutside) + (1 - stat.totalDuration) + (1 - stat.numTransfers);
-        scores.push({ planId: stat.planId, score: score, totalTimeOutside: stat.totalTimeOutsideUnnorm });
+        scores.push({ planId: stat.planId, score: score, totalTimeOutside: stat.totalTimeOutsideUnnorm, totalTimeSheltered: stat.totalTimeSheltered });
     }
     return scores;
 }
